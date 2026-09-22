@@ -1,0 +1,8 @@
+transformers
+torch
+huggingface_hub
+accelerate
+docker
+fastapi
+uvicorn
+pydantic

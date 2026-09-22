@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+
+.env
+
+# Hugging Face cache should NOT be committed.
+.cache/
+huggingface/
+
+# IDE
+.vscode/
+.idea/
