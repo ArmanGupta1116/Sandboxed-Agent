@@ -4,6 +4,7 @@ import re
 from app.model import LocalModel
 from app.prompts import SYSTEM_PROMPT
 from app.tools import CodeTools
+from app.events import EventPublisher
 
 
 class CodingAgent:
@@ -12,15 +13,25 @@ class CodingAgent:
         self,
         model: LocalModel,
         tools: CodeTools,
+        event_publisher: EventPublisher | None = None,
     ):
         self.model = model
         self.tools = tools
+        self.event_publisher = event_publisher
 
     def run(
         self,
+        task_id: str,
         task: str,
         max_steps: int = 8,
     ):
+        self._publish_event(
+            task_id,
+            "task.started",
+            {
+                "task": task,
+            },
+        )
 
         messages = [
             {
@@ -41,6 +52,13 @@ class CodingAgent:
 
             response = self.model.generate(
                 messages
+            )
+            self._publish_event(
+                task_id,
+                "agent.step",
+                {
+                    "step": step,
+                },
             )
 
             history.append({
@@ -118,10 +136,26 @@ class CodingAgent:
             for tool_call in tool_calls:
                 tool_name = tool_call["name"]
                 args = tool_call["arguments"]
+                self._publish_event(
+                    task_id,
+                    "tool.started",
+                    {
+                        "tool": tool_name,
+                    },
+                )
 
                 result = self._execute_tool(
                     tool_name,
                     args,
+                )
+
+                self._publish_event(
+                    task_id,
+                    "tool.completed",
+                    {
+                        "tool": tool_name,
+                        "success": result.get("success", False),
+                    },
                 )
                 used_tool = True
                 results.append({
@@ -142,6 +176,13 @@ class CodingAgent:
                 ),
             })
 
+        self._publish_event(
+            task_id,
+            "task.completed",
+            {
+                "steps": step + 1,
+            },
+        )
         return {
             "status": "max_steps_reached",
             "history": history,
@@ -221,3 +262,17 @@ class CodingAgent:
                 f"Unknown tool: {name}"
             ),
         }
+    def _publish_event(
+        self,
+        task_id: str,
+        event_type: str,
+        payload: dict | None = None,
+    ):
+        if self.event_publisher is None:
+            return
+
+        self.event_publisher.publish(
+            task_id=task_id,
+            event_type=event_type,
+            payload=payload or {},
+        )

@@ -6,3 +6,4 @@ docker
 fastapi
 uvicorn
 pydantic
+kafka-python-ng
